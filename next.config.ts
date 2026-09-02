@@ -14,6 +14,7 @@ function localIpv4DevOrigins() {
 }
 
 const nextConfig: NextConfig = {
+  agentRules: false,
   // Next dev blocks LAN hosts unless they are explicitly allowed.
   allowedDevOrigins: localIpv4DevOrigins(),
   typedRoutes: true,

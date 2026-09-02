@@ -11,3 +11,5 @@ coverage
 output
 .data
 generated
+.vercel
+/ming-*.png
