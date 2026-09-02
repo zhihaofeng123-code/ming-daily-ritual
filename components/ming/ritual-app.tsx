@@ -1,12 +1,34 @@
 "use client";
 
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Calculation } from "@/components/ming/calculation";
 import { PlaceField, type PlaceValue } from "@/components/ming/place-field";
 import { readStored, writeStored } from "@/lib/client-storage";
 import { isBirthDetails, type BirthDetails, type SignalResponse } from "@/lib/ming/client-types";
+import { buildUrlStateHref } from "@/lib/url-state";
 
 const STORAGE_KEY = "ming.birth.v1";
+
+/**
+ * A signal view must be reconstructable from the URL alone, so it can be linked,
+ * reloaded, and captured. Query state is the source of truth when present;
+ * localStorage only seeds a first visit that arrives with a bare URL.
+ */
+function detailsFromParams(params: URLSearchParams): BirthDetails | null {
+  const candidate = {
+    date: params.get("d") ?? "",
+    time: params.get("t") ?? "",
+    place: params.get("place") ?? "",
+    tz: params.get("tz") ?? "",
+    lat: Number(params.get("lat")),
+    lon: Number(params.get("lon")),
+  };
+  if (!Number.isFinite(candidate.lat) || !Number.isFinite(candidate.lon)) return null;
+  return isBirthDetails(candidate) ? candidate : null;
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const viewerTz = () => {
   try {
@@ -47,6 +69,9 @@ function Wordmark() {
 
 export function RitualApp() {
   const tz = useMemo(viewerTz, []);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [details, setDetails] = useState<BirthDetails | null>(null);
   const [editing, setEditing] = useState(true);
   const [hydrated, setHydrated] = useState(false);
@@ -62,20 +87,47 @@ export function RitualApp() {
   const [showCalc, setShowCalc] = useState(false);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = detailsFromParams(params);
     const stored = readStored<BirthDetails | null>(
       STORAGE_KEY,
       (v): v is BirthDetails | null => v === null || isBirthDetails(v),
       null
     );
-    if (stored) {
-      setDetails(stored);
-      setDate(stored.date);
-      setTime(stored.time);
-      setPlace({ place: stored.place, tz: stored.tz, lat: stored.lat, lon: stored.lon });
+    const initial = fromUrl ?? stored;
+    const dayParam = params.get("day");
+    if (dayParam && DATE_RE.test(dayParam)) setTarget(dayParam);
+    if (initial) {
+      setDetails(initial);
+      setDate(initial.date);
+      setTime(initial.time);
+      setPlace({ place: initial.place, tz: initial.tz, lat: initial.lat, lon: initial.lon });
       setEditing(false);
     }
     setHydrated(true);
   }, []);
+
+  // Keep the address bar in step so the current signal is linkable and reloadable.
+  useEffect(() => {
+    if (!hydrated || editing || !details) return;
+    const href = buildUrlStateHref(
+      { pathname, search: searchParams.toString() },
+      {
+        d: details.date,
+        t: details.time,
+        tz: details.tz,
+        lat: details.lat,
+        lon: details.lon,
+        place: details.place,
+        day: target,
+      }
+    );
+    if (href !== `${pathname}${window.location.search}`) {
+      // Typed routes cannot know a runtime-built query string; the href is
+      // App-relative by construction in buildUrlStateHref.
+      router.replace(href as Parameters<typeof router.replace>[0], { scroll: false });
+    }
+  }, [hydrated, editing, details, target, pathname, searchParams, router]);
 
   const load = useCallback(
     async (d: BirthDetails, targetDate: string) => {
