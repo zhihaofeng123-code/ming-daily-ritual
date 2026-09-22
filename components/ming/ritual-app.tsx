@@ -6,11 +6,8 @@ import { ArrowDown, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Calculation } from "@/components/ming/calculation";
 import { PlaceField, type PlaceValue } from "@/components/ming/place-field";
-import { readStored, writeStored } from "@/lib/client-storage";
 import { isBirthDetails, type BirthDetails, type SignalResponse } from "@/lib/ming/client-types";
 import { buildUrlStateHref } from "@/lib/url-state";
-
-const STORAGE_KEY = "ming.birth.v1";
 
 function detailsFromParams(params: URLSearchParams): BirthDetails | null {
   const candidate = {
@@ -167,12 +164,7 @@ export function RitualApp() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const fromUrl = detailsFromParams(params);
-    const stored = readStored<BirthDetails | null>(
-      STORAGE_KEY,
-      (value): value is BirthDetails | null => value === null || isBirthDetails(value),
-      null,
-    );
-    const initial = fromUrl ?? stored;
+    const initial = fromUrl;
     const dayParam = params.get("day");
     if (dayParam && DATE_RE.test(dayParam)) setTarget(dayParam);
     if (initial) {
@@ -228,7 +220,6 @@ export function RitualApp() {
     event.preventDefault();
     if (!place || !date || !time) return;
     const next: BirthDetails = { date, time, place: place.place, tz: place.tz, lat: place.lat, lon: place.lon };
-    writeStored(STORAGE_KEY, next);
     setDetails(next);
     setEditing(false);
     setShowCalc(false);
