@@ -1,28 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowDown, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Calculation } from "@/components/ming/calculation";
 import { PlaceField, type PlaceValue } from "@/components/ming/place-field";
-import { isBirthDetails, type BirthDetails, type SignalResponse } from "@/lib/ming/client-types";
-import { buildUrlStateHref } from "@/lib/url-state";
-
-function detailsFromParams(params: URLSearchParams): BirthDetails | null {
-  const candidate = {
-    date: params.get("d") ?? "",
-    time: params.get("t") ?? "",
-    place: params.get("place") ?? "",
-    tz: params.get("tz") ?? "",
-    lat: Number(params.get("lat")),
-    lon: Number(params.get("lon")),
-  };
-  if (!Number.isFinite(candidate.lat) || !Number.isFinite(candidate.lon)) return null;
-  return isBirthDetails(candidate) ? candidate : null;
-}
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+import { type BirthDetails, type SignalResponse } from "@/lib/ming/client-types";
 
 const viewerTz = () => {
   try {
@@ -146,9 +129,6 @@ function BrandStory() {
 
 export function RitualApp() {
   const tz = useMemo(viewerTz, []);
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [details, setDetails] = useState<BirthDetails | null>(null);
   const [editing, setEditing] = useState(true);
   const [hydrated, setHydrated] = useState(false);
@@ -162,31 +142,11 @@ export function RitualApp() {
   const [showCalc, setShowCalc] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const fromUrl = detailsFromParams(params);
-    const initial = fromUrl;
-    const dayParam = params.get("day");
-    if (dayParam && DATE_RE.test(dayParam)) setTarget(dayParam);
-    if (initial) {
-      setDetails(initial);
-      setDate(initial.date);
-      setTime(initial.time);
-      setPlace({ place: initial.place, tz: initial.tz, lat: initial.lat, lon: initial.lon });
-      setEditing(false);
+    if (window.location.search) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
     }
     setHydrated(true);
   }, []);
-
-  useEffect(() => {
-    if (!hydrated || editing || !details) return;
-    const href = buildUrlStateHref(
-      { pathname, search: searchParams.toString() },
-      { d: details.date, t: details.time, tz: details.tz, lat: details.lat, lon: details.lon, place: details.place, day: target },
-    );
-    if (href !== `${pathname}${window.location.search}`) {
-      router.replace(href as Parameters<typeof router.replace>[0], { scroll: false });
-    }
-  }, [hydrated, editing, details, target, pathname, searchParams, router]);
 
   const load = useCallback(async (birth: BirthDetails, targetDate: string) => {
     setLoading(true);
